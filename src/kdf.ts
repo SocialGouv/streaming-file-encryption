@@ -8,12 +8,12 @@ import {
 import { incrementLE, memzero } from './utils'
 
 function deriveKey(
-  mainSecret: Uint8Array,
-  salt: Uint8Array,
+  mainSecret: Buffer | Uint8Array,
+  salt: Buffer,
   context: string,
   outputSize: number
 ) {
-  return new Promise<Uint8Array>((resolve, reject) => {
+  return new Promise<Buffer>((resolve, reject) => {
     crypto.hkdf(
       KDF_HASH,
       mainSecret,
@@ -24,15 +24,15 @@ function deriveKey(
         if (error) {
           return reject(error)
         }
-        resolve(new Uint8Array(derivedKey))
+        resolve(Buffer.from(derivedKey))
       }
     )
   })
 }
 
 export async function deriveKeys(
-  mainSecret: Uint8Array,
-  mainSalt: Uint8Array,
+  mainSecret: Buffer | Uint8Array,
+  mainSalt: Buffer,
   context: string
 ) {
   const hmacSalt = Buffer.from(mainSalt)

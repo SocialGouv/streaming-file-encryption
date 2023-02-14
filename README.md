@@ -14,14 +14,12 @@ npm i @socialgouv/streaming-file-encryption
 
 > _**Note**: requires Node.js v15 or superior._
 
-You will need the following to get started:
-
-1. A main secret, which can be generated in Node.js:
+To get started, you will need a main secret, which can be generated in Node.js:
 
 ```ts
 import crypto from 'node:crypto'
 
-// The length should be between 32 and 256 bytes,
+// The length should be between 64 and 256 bytes,
 // and must be issued from a CSPRNG:
 console.info(crypto.randomBytes(64).toString('hex'))
 ```
@@ -42,16 +40,21 @@ import { encryptFile, decryptFile } from '@socialgouv/streaming-file-encryption'
 import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 
+const mainSecret = Buffer.from(/* your main secret here */, 'hex')
+const context = 'test context'
+
+// Encryption
 await pipeline(
-  fs.createReadStream('cleartext.ext'),
+  fs.createReadStream('path/to/cleartext.ext'),
   encryptFile(mainSecret, context),
-  fs.createWriteStream('ciphertext.enc')
+  fs.createWriteStream('path/to/ciphertext.enc')
 )
 
+// Decryption
 await pipeline(
-  fs.createReadStream('ciphertext.enc'),
+  fs.createReadStream('path/to/ciphertext.enc'),
   decryptFile(mainSecret, context),
-  fs.createWriteStream('cleartext.ext')
+  fs.createWriteStream('path/to/cleartext.ext')
 )
 ```
 

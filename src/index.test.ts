@@ -3,7 +3,6 @@ import { createReadStream, createWriteStream } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import { decryptFile, encryptFile } from './index'
 import { rebuffer } from './streams'
-import { decodeHex } from './tests/codec'
 import { expectOutputSequence, observe, sourceStream } from './tests/streams'
 
 const __4kiB = 4_096
@@ -98,8 +97,9 @@ describe('complete encryption/decryption flow', () => {
   })
 
   test('known vector - antiregression', async () => {
-    const mainSecret = decodeHex(
-      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+    const mainSecret = Buffer.from(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      'hex'
     )
     const context = 'context'
     // Generated with:
@@ -166,5 +166,30 @@ describe('complete encryption/decryption flow', () => {
     expect(spy.mock.calls[6][0].byteLength).toEqual(16)
     // HMAC
     expect(spy.mock.calls[7][0].byteLength).toEqual(64)
+  })
+
+  test('it accepts main secrets as Buffers or Uint8Arrays', async () => {
+    const mainSecretBuff = crypto.randomBytes(64)
+    const mainSecretUint = new Uint8Array(mainSecretBuff)
+    const spy = jest.fn()
+    const source = sourceStream([_64kiB, _64kiB])
+    const sink = createWriteStream('/dev/null')
+    await pipeline(
+      source,
+      encryptFile(mainSecretBuff, 'ctx'),
+      decryptFile(mainSecretUint, 'ctx'),
+      observe(spy),
+      sink
+    )
+    expectOutputSequence(spy, [
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+    ])
   })
 })

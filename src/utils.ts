@@ -1,10 +1,10 @@
-export function memzero(buffer: Uint8Array) {
+export function memzero(buffer: Buffer) {
   for (let i = 0; i < buffer.byteLength; ++i) {
     buffer[i] = 0
   }
 }
 
-export function incrementLE(buffer: Uint8Array) {
+export function incrementLE(buffer: Buffer) {
   let add = 0
   let carry = 1
   for (let i = 0; i < buffer.byteLength; ++i) {

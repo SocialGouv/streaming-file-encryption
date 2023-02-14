@@ -72,7 +72,7 @@ export function rebuffer(headerSize: number, bufferSize: number) {
   }
 }
 
-function chunkedEncryption(mainSecret: Uint8Array, context: string) {
+function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
   return async function* encryptChunk(source: AsyncIterable<Buffer>) {
     const paddingBuffer = Buffer.alloc(CLEARTEXT_BLOCK_SIZE, 0x00)
     const iv = crypto.randomBytes(AES_256_GCM_IV_LENGTH)
@@ -124,10 +124,10 @@ function chunkedEncryption(mainSecret: Uint8Array, context: string) {
   }
 }
 
-function chunkedDecryption(mainSecret: Uint8Array, context: string) {
+function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
   return async function* decryptChunk(source: AsyncIterable<Buffer>) {
-    let aesKey = new Uint8Array()
-    let iv = new Uint8Array()
+    let aesKey = Buffer.from([])
+    let iv = Buffer.from([])
     let hmac: crypto.Hmac | undefined = undefined
     let isHeader = true
     let isDone = false
@@ -137,17 +137,13 @@ function chunkedDecryption(mainSecret: Uint8Array, context: string) {
         if (v.toString() !== HEADER_VERSION) {
           throw new Error('Unsupported file type')
         }
-        iv = new Uint8Array(
-          block.subarray(
-            HEADER_VERSION.length,
-            HEADER_VERSION.length + AES_256_GCM_IV_LENGTH
-          )
+        iv = block.subarray(
+          HEADER_VERSION.length,
+          HEADER_VERSION.length + AES_256_GCM_IV_LENGTH
         )
-        const salt = new Uint8Array(
-          block.subarray(
-            HEADER_VERSION.length + AES_256_GCM_IV_LENGTH,
-            HEADER_SIZE
-          )
+        const salt = block.subarray(
+          HEADER_VERSION.length + AES_256_GCM_IV_LENGTH,
+          HEADER_SIZE
         )
         ;({ aesKey, hmac } = await deriveKeys(mainSecret, salt, context))
         hmac.update(v)
@@ -196,14 +192,14 @@ function chunkedDecryption(mainSecret: Uint8Array, context: string) {
   }
 }
 
-export function encryptFile(mainSecret: Uint8Array, context: string) {
+export function encryptFile(mainSecret: Buffer | Uint8Array, context: string) {
   return compose(
     rebuffer(0, CLEARTEXT_BLOCK_SIZE),
     chunkedEncryption(mainSecret, context)
   )
 }
 
-export function decryptFile(mainSecret: Uint8Array, context: string) {
+export function decryptFile(mainSecret: Buffer | Uint8Array, context: string) {
   return compose(
     rebuffer(HEADER_SIZE, CIPHERTEXT_BLOCK_SIZE),
     chunkedDecryption(mainSecret, context)
