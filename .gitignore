@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src/sandbox.ts
+
+# Test fixtures
+i.jpg
+i.pdf
+i.txt
+decrypted.bin
+e.*
+o.*
