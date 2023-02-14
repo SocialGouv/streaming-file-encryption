@@ -40,7 +40,7 @@ record, like a foreign key. UUIDs are ideal for this kind of application.
 ```ts
 import { encryptFile, decryptFile } from '@socialgouv/streaming-file-encryption'
 import fs from 'node:fs'
-import { pipleline } from 'node:stream/promises'
+import { pipeline } from 'node:stream/promises'
 
 await pipeline(
   fs.createReadStream('cleartext.ext'),
