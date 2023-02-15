@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import {
-  AES_256_GCM_KEY_LENGTH,
+  CIPHER_KEY_LENGTH,
   HMAC_HASH,
   HMAC_KEY_LENGTH,
   KDF_HASH,
@@ -37,12 +37,12 @@ export async function deriveKeys(
 ) {
   const hmacSalt = Buffer.from(mainSalt)
   incrementLE(hmacSalt)
-  const [aesKey, hmacKey] = await Promise.all([
-    deriveKey(mainSecret, mainSalt, context, AES_256_GCM_KEY_LENGTH),
+  const [cipherKey, hmacKey] = await Promise.all([
+    deriveKey(mainSecret, mainSalt, context, CIPHER_KEY_LENGTH),
     deriveKey(mainSecret, hmacSalt, context, HMAC_KEY_LENGTH),
   ])
   memzero(hmacSalt)
   const hmac = crypto.createHmac(HMAC_HASH, hmacKey)
   memzero(hmacKey)
-  return { aesKey, hmac }
+  return { cipherKey, hmac }
 }

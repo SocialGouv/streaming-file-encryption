@@ -1,10 +1,10 @@
 import crypto from 'node:crypto'
 import { compose } from 'node:stream'
 import {
-  AES_256_BLOCK_MODE,
-  AES_256_GCM_AUTH_TAG_LENGTH,
-  AES_256_GCM_IV_LENGTH,
   CIPHERTEXT_BLOCK_SIZE,
+  CIPHER_ALGORITHM,
+  CIPHER_AUTH_TAG_LENGTH,
+  CIPHER_IV_LENGTH,
   CLEARTEXT_BLOCK_SIZE,
   HEADER_SIZE,
   HEADER_VERSION,
@@ -75,9 +75,9 @@ export function rebuffer(headerSize: number, bufferSize: number) {
 function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
   return async function* encryptChunk(source: AsyncIterable<Buffer>) {
     const paddingBuffer = Buffer.alloc(CLEARTEXT_BLOCK_SIZE, 0x00)
-    const iv = crypto.randomBytes(AES_256_GCM_IV_LENGTH)
+    const iv = crypto.randomBytes(CIPHER_IV_LENGTH)
     const salt = crypto.randomBytes(KDF_SALT_LENGTH)
-    const { aesKey, hmac } = await deriveKeys(mainSecret, salt, context)
+    const { cipherKey, hmac } = await deriveKeys(mainSecret, salt, context)
     const version = Buffer.from(HEADER_VERSION)
 
     yield version
@@ -90,8 +90,8 @@ function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
     yield salt
     hmac.update(salt)
     for await (const cleartext of source) {
-      const cipher = crypto.createCipheriv(AES_256_BLOCK_MODE, aesKey, iv, {
-        authTagLength: AES_256_GCM_AUTH_TAG_LENGTH,
+      const cipher = crypto.createCipheriv(CIPHER_ALGORITHM, cipherKey, iv, {
+        authTagLength: CIPHER_AUTH_TAG_LENGTH,
       })
       const paddingSize = Math.max(
         0,
@@ -120,13 +120,13 @@ function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
       incrementLE(iv)
     }
     yield hmac.digest()
-    memzero(aesKey)
+    memzero(cipherKey)
   }
 }
 
 function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
   return async function* decryptChunk(source: AsyncIterable<Buffer>) {
-    let aesKey = Buffer.from([])
+    let cipherKey = Buffer.from([])
     let iv = Buffer.from([])
     let hmac: crypto.Hmac | undefined = undefined
     let isHeader = true
@@ -139,13 +139,13 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         }
         iv = block.subarray(
           HEADER_VERSION.length,
-          HEADER_VERSION.length + AES_256_GCM_IV_LENGTH
+          HEADER_VERSION.length + CIPHER_IV_LENGTH
         )
         const salt = block.subarray(
-          HEADER_VERSION.length + AES_256_GCM_IV_LENGTH,
+          HEADER_VERSION.length + CIPHER_IV_LENGTH,
           HEADER_SIZE
         )
-        ;({ aesKey, hmac } = await deriveKeys(mainSecret, salt, context))
+        ;({ cipherKey, hmac } = await deriveKeys(mainSecret, salt, context))
         hmac.update(v)
         hmac.update(iv)
         hmac.update(salt)
@@ -167,8 +167,8 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         )
       }
       hmac!.update(block)
-      const authTagLength = AES_256_GCM_AUTH_TAG_LENGTH
-      const cipher = crypto.createDecipheriv(AES_256_BLOCK_MODE, aesKey, iv, {
+      const authTagLength = CIPHER_AUTH_TAG_LENGTH
+      const cipher = crypto.createDecipheriv(CIPHER_ALGORITHM, cipherKey, iv, {
         authTagLength,
       })
       const authTag = block.subarray(-authTagLength, block.byteLength)
@@ -183,7 +183,7 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
       }
       incrementLE(iv)
     }
-    memzero(aesKey)
+    memzero(cipherKey)
     if (!isDone) {
       throw new Error(
         'File decryption error: stream terminated before HMAC verification'
