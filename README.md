@@ -97,8 +97,8 @@ There are two cryptographic parts to performing encryption and decryption:
 
 Key derivation is done using `HKDF-SHA512`.
 
-Symmetric encryption is done using `AES-256-GCM` on blocks of 16kiB of
-cleartext at a time.
+Symmetric encryption is done using either `AES-256-GCM` or `ChaCha20-Poly1305`
+on blocks of 16kiB of cleartext at a time.
 
 Final message authentication is done using `HMAC-SHA512`.
 
@@ -108,7 +108,7 @@ We generate a random 32 byte salt `S`.
 
 Two keys are derived using `HKDF-SHA512`:
 
-One is for AES, using the main secret, the context and the salt `S`, giving
+One is for encryption, using the main secret, the context and the salt `S`, giving
 an output key of 32 bytes (256 bits).
 
 One is for HMAC, using the main secret, the context and a salt `S + 1` (little
@@ -116,7 +116,7 @@ endian incrementation), giving an output key of 64 bytes.
 
 The purpose of the salt is to add entropy to key derivation aside from the two
 sources provided by the user (main secret & context). Differentiation via the
-salt ensures no key material is shared between AES and HMAC.
+salt ensures no key material is shared between encryption and HMAC.
 
 ### File encryption
 
@@ -124,12 +124,12 @@ We generate a random IV (12 bytes) `IV`.
 
 The ciphertext file starts with a 48 bytes header containing:
 
-- A four-byte version marker `1a2g`
+- A four-byte version marker (`1a2g` for AES-256-GCM or `1c2p` for ChaCha20-Poly1305)
 - the IV
-- the salt used for AES key derivation
+- the salt used for encryption key derivation
 
 The plain-text is broken down into blocks of 16kiB (16384 bytes) to be
-encrypted individually with AES-256-GCM.
+encrypted individually with AES-256-GCM (by default) or ChaCha20-Poly1305 (if selected).
 
 Clear-text input blocks are zero-padded (padding after data) to ensure a
 constant length of 16kiB. The actual data length is encoded on two bytes
@@ -144,11 +144,11 @@ Block to encrypt
 00 00 00 00 00 00 00 00 00 00 00 00 00    padding (16371 bytes of zeros)
 ```
 
-The first block will use the AES key obtained during key derivation and the IV.
+The first block will use the encryption key obtained during key derivation and the IV.
 
 Subsequent blocks will then increment the IV (in a little-endian manner).
 
-The AES-256-GCM authentication tag is appended after the associated ciphertext.
+The AEAD authentication tag is appended after the associated ciphertext.
 
 HMAC is computed over everything from the first byte of the version identifier
 in the header to the last byte of the authentication tag of the last block,
@@ -158,7 +158,7 @@ Therefore, the binary file structure looks like this:
 
 ```
 Header
-31 61 32 67 aa aa aa aa aa aa aa aa aa aa aa aa  |  Version + IV
+vv vv vv vv aa aa aa aa aa aa aa aa aa aa aa aa  |  Version + IV
 bb bb bb bb bb bb bb bb bb bb bb bb bb bb bb bb  |  Salt (LSB)
 bb bb bb bb bb bb bb bb bb bb bb bb bb bb bb bb  |  Salt (MSB)
 
@@ -181,7 +181,10 @@ xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  until
 xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  this point
 ```
 
-Version is the ASCII string `1a2g` (hex `31 61 32 67`)
+Version is the ASCII string:
+
+- `1a2g` (hex `31 61 32 67`) when using AES-256-GCM
+- `1c2p` (hex `31 63 32 70`) when using ChaCha20-Poly1305
 
 When decrypting a file:
 
@@ -197,10 +200,10 @@ When decrypting a file:
 
 ## FAQ
 
-### Why HMAC? Isn't AES-GCM already authenticated?
+### Why HMAC? Isn't AES-GCM / Poly1305 already authenticated?
 
 For a single-block file, the final HMAC is indeed redundant with the authenticated
-encryption of AES-GCM.
+encryption of AES-GCM / Poly1305.
 
 However, consider an input file spanning multiple blocks of 16kiB. While the
 IV incrementation ensures that blocks can't be reordered or skipped, there are
