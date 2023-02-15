@@ -1,13 +1,15 @@
 import crypto from 'node:crypto'
 import { compose } from 'node:stream'
 import {
+  CipherAlgorithm,
   CIPHERTEXT_BLOCK_SIZE,
-  CIPHER_ALGORITHM,
   CIPHER_AUTH_TAG_LENGTH,
   CIPHER_IV_LENGTH,
   CLEARTEXT_BLOCK_SIZE,
   HEADER_SIZE,
-  HEADER_VERSION,
+  HEADER_VERSION_1a2g,
+  HEADER_VERSION_1c2p,
+  HEADER_VERSION_LENGTH,
   HMAC_OUTPUT_LENGTH,
   KDF_SALT_LENGTH,
 } from './constants'
@@ -72,13 +74,21 @@ export function rebuffer(headerSize: number, bufferSize: number) {
   }
 }
 
-function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
+function chunkedEncryption(
+  mainSecret: Buffer | Uint8Array,
+  context: string,
+  algorithm: CipherAlgorithm
+) {
   return async function* encryptChunk(source: AsyncIterable<Buffer>) {
     const paddingBuffer = Buffer.alloc(CLEARTEXT_BLOCK_SIZE, 0x00)
     const iv = crypto.randomBytes(CIPHER_IV_LENGTH)
     const salt = crypto.randomBytes(KDF_SALT_LENGTH)
     const { cipherKey, hmac } = await deriveKeys(mainSecret, salt, context)
-    const version = Buffer.from(HEADER_VERSION)
+    const version = Buffer.from(
+      algorithm === 'chacha20-poly1305'
+        ? HEADER_VERSION_1c2p
+        : HEADER_VERSION_1a2g
+    )
 
     yield version
     hmac.update(version)
@@ -90,7 +100,8 @@ function chunkedEncryption(mainSecret: Buffer | Uint8Array, context: string) {
     yield salt
     hmac.update(salt)
     for await (const cleartext of source) {
-      const cipher = crypto.createCipheriv(CIPHER_ALGORITHM, cipherKey, iv, {
+      const cipher = crypto.createCipheriv(algorithm, cipherKey, iv, {
+        // @ts-ignore
         authTagLength: CIPHER_AUTH_TAG_LENGTH,
       })
       const paddingSize = Math.max(
@@ -131,18 +142,23 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
     let hmac: crypto.Hmac | undefined = undefined
     let isHeader = true
     let isDone = false
+    let algorithm: CipherAlgorithm = 'aes-256-gcm'
     for await (const block of source) {
       if (isHeader) {
-        const v = block.subarray(0, HEADER_VERSION.length)
-        if (v.toString() !== HEADER_VERSION) {
+        const v = block.subarray(0, HEADER_VERSION_LENGTH)
+        if (v.toString() === HEADER_VERSION_1a2g) {
+          algorithm = 'aes-256-gcm'
+        } else if (v.toString() === HEADER_VERSION_1c2p) {
+          algorithm = 'chacha20-poly1305'
+        } else {
           throw new Error('Unsupported file type')
         }
         iv = block.subarray(
-          HEADER_VERSION.length,
-          HEADER_VERSION.length + CIPHER_IV_LENGTH
+          HEADER_VERSION_LENGTH,
+          HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH
         )
         const salt = block.subarray(
-          HEADER_VERSION.length + CIPHER_IV_LENGTH,
+          HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH,
           HEADER_SIZE
         )
         ;({ cipherKey, hmac } = await deriveKeys(mainSecret, salt, context))
@@ -168,7 +184,8 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
       }
       hmac!.update(block)
       const authTagLength = CIPHER_AUTH_TAG_LENGTH
-      const cipher = crypto.createDecipheriv(CIPHER_ALGORITHM, cipherKey, iv, {
+      const cipher = crypto.createDecipheriv(algorithm, cipherKey, iv, {
+        // @ts-ignore
         authTagLength,
       })
       const authTag = block.subarray(-authTagLength, block.byteLength)
@@ -192,10 +209,14 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
   }
 }
 
-export function encryptFile(mainSecret: Buffer | Uint8Array, context: string) {
+export function encryptFile(
+  mainSecret: Buffer | Uint8Array,
+  context: string,
+  algorithm: CipherAlgorithm = 'aes-256-gcm'
+) {
   return compose(
     rebuffer(0, CLEARTEXT_BLOCK_SIZE),
-    chunkedEncryption(mainSecret, context)
+    chunkedEncryption(mainSecret, context, algorithm)
   )
 }
 
