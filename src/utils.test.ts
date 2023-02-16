@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { compare, incrementLE, memzero } from './utils'
+import { compare, incrementLE, memzero, numberToUint32LE } from './utils'
 
 const deHex = (hex: string) => Buffer.from(hex, 'hex')
 
@@ -39,5 +39,13 @@ describe('utils', () => {
     const a = Buffer.from(deHex('1234567890'))
     const b = Buffer.from(deHex('0987654321'))
     expect(compare(a, b)).toBe(false)
+  })
+  test('numberToUint32LE', () => {
+    const n = numberToUint32LE
+    expect(n(0x00000000)).toEqual(Buffer.from([0x00, 0x00, 0x00, 0x00]))
+    expect(n(0x00000001)).toEqual(Buffer.from([0x01, 0x00, 0x00, 0x00]))
+    expect(n(0x000000ff)).toEqual(Buffer.from([0xff, 0x00, 0x00, 0x00]))
+    expect(n(0x00000100)).toEqual(Buffer.from([0x00, 0x01, 0x00, 0x00]))
+    expect(n(0x12345678)).toEqual(Buffer.from([0x78, 0x56, 0x34, 0x12]))
   })
 })
