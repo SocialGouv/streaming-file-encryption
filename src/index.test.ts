@@ -96,7 +96,7 @@ describe('complete encryption/decryption flow', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  test('known vector - antiregression', async () => {
+  test('known vector - antiregression - aes-256-gcm', async () => {
     const mainSecret = Buffer.from(
       '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       'hex'
@@ -107,15 +107,48 @@ describe('complete encryption/decryption flow', () => {
     // await pipeline(source, createWriteStream('cleartext.bin'))
     // await pipeline(
     //   createReadStream('cleartext.bin'),
-    //   encryptFile(mainSecret, context),
-    //   createWriteStream('ciphertext.bin')
+    //   encryptFile(mainSecret, context, 'aes-256-gcm'),
+    //   createWriteStream('ciphertext.aes-256-gcm.bin')
     // )
     const spy = jest.fn()
     await pipeline(
-      createReadStream('ciphertext.bin'),
+      createReadStream('ciphertext.aes-256-gcm.bin'),
       decryptFile(mainSecret, context),
       observe(spy),
-      createWriteStream('decrypted.bin')
+      createWriteStream('/dev/null')
+    )
+    expectOutputSequence(spy, [
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+      _16kiB,
+    ])
+  })
+
+  test('known vector - antiregression - chacha20-poly1305', async () => {
+    const mainSecret = Buffer.from(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      'hex'
+    )
+    const context = 'context'
+    // Generated with:
+    // const source = sourceStream([_64kiB, _64kiB])
+    // await pipeline(source, createWriteStream('cleartext.bin'))
+    // await pipeline(
+    //   createReadStream('cleartext.bin'),
+    //   encryptFile(mainSecret, context, 'chacha20-poly1305'),
+    //   createWriteStream('ciphertext.chacha20-poly1305.bin')
+    // )
+    const spy = jest.fn()
+    await pipeline(
+      createReadStream('ciphertext.chacha20-poly1305.bin'),
+      decryptFile(mainSecret, context),
+      observe(spy),
+      createWriteStream('/dev/null')
     )
     expectOutputSequence(spy, [
       _16kiB,

@@ -14,7 +14,7 @@ import {
   KDF_SALT_LENGTH,
 } from './constants'
 import { deriveKeys } from './kdf'
-import { compare, incrementLE, memzero } from './utils'
+import { compare, incrementLE, memzero, numberToUint32LE } from './utils'
 
 declare module 'node:stream' {
   export function compose(
@@ -80,6 +80,7 @@ function chunkedEncryption(
   algorithm: CipherAlgorithm
 ) {
   return async function* encryptChunk(source: AsyncIterable<Buffer>) {
+    let blockIndex = 0
     const paddingBuffer = Buffer.alloc(CLEARTEXT_BLOCK_SIZE, 0x00)
     const iv = crypto.randomBytes(CIPHER_IV_LENGTH)
     const salt = crypto.randomBytes(KDF_SALT_LENGTH)
@@ -92,9 +93,9 @@ function chunkedEncryption(
 
     yield version
     hmac.update(version)
-    const ivOut = Buffer.from(iv)
     // Make a copy when writing the IV to avoid same-tick increment
     // being backported to the output stream
+    const ivOut = Buffer.from(iv)
     yield ivOut
     hmac.update(ivOut)
     yield salt
@@ -104,6 +105,7 @@ function chunkedEncryption(
         // @ts-ignore
         authTagLength: CIPHER_AUTH_TAG_LENGTH,
       })
+      cipher.setAAD(numberToUint32LE(blockIndex))
       const paddingSize = Math.max(
         0,
         CLEARTEXT_BLOCK_SIZE - cleartext.byteLength
@@ -129,6 +131,7 @@ function chunkedEncryption(
       yield authTag
       hmac.update(authTag)
       incrementLE(iv)
+      blockIndex++
     }
     yield hmac.digest()
     memzero(cipherKey)
@@ -143,6 +146,7 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
     let isHeader = true
     let isDone = false
     let algorithm: CipherAlgorithm = 'aes-256-gcm'
+    let blockIndex = 0
     for await (const block of source) {
       if (isHeader) {
         const v = block.subarray(0, HEADER_VERSION_LENGTH)
@@ -188,6 +192,7 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         // @ts-ignore
         authTagLength,
       })
+      cipher.setAAD(numberToUint32LE(blockIndex))
       const authTag = block.subarray(-authTagLength, block.byteLength)
       const ciphertext = block.subarray(0, -authTagLength)
       cipher.setAuthTag(authTag)
@@ -199,6 +204,7 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         yield final // Avoid yielding zero-length buffers to help with testing
       }
       incrementLE(iv)
+      blockIndex++
     }
     memzero(cipherKey)
     if (!isDone) {

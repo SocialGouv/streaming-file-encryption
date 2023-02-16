@@ -24,3 +24,10 @@ export function compare(a: Buffer, b: Buffer) {
   }
   return ok
 }
+
+export function numberToUint32LE(input: number) {
+  const buffer = new ArrayBuffer(4)
+  const u32 = new Uint32Array(buffer)
+  u32[0] = input
+  return Buffer.from(buffer)
+}
