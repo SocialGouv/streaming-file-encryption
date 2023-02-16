@@ -113,19 +113,21 @@ Final message authentication is done using `HMAC-SHA512`.
 
 ### Key derivation
 
+![key derivation diagram](./img/key-derivation.png)
+
 We generate a random 32 byte salt `S`.
 
 Two keys are derived using `HKDF-SHA512`:
 
-One is for encryption, using the main secret, the context and the salt `S`, giving
+One is for encryption, using the main secret as the IKM, the context as the `info` and the salt `S`, giving
 an output key of 32 bytes (256 bits).
 
 One is for HMAC, using the main secret, the context and a salt `S + 1` (little
 endian incrementation), giving an output key of 64 bytes.
 
-The purpose of the salt is to add entropy to key derivation aside from the two
-sources provided by the user (main secret & context). Differentiation via the
-salt ensures no key material is shared between encryption and HMAC.
+> **Note**: The purpose of the salt is to add entropy to key derivation aside from the two
+> sources provided by the user (main secret & context). Differentiation via the
+> salt ensures no key material is shared between encryption and HMAC.
 
 ### File encryption
 
@@ -137,21 +139,16 @@ The ciphertext file starts with a 48 bytes header containing:
 - the IV
 - the salt used for encryption key derivation
 
+![file header structure](./img/file-header-structure.png)
+
 The plain-text is broken down into pages of 16kiB (16384 bytes) to be
-encrypted individually with AES-256-GCM (by default) or ChaCha20-Poly1305 (if selected).
+encrypted individually with AES-256-GCM or ChaCha20-Poly1305.
 
 Clear-text input pages are zero-padded (padding after data) to ensure a
 constant length of 16kiB. The actual data length is encoded on two bytes
 (little endian), and prepended to the page to encrypt:
 
-```
-cleartext input: "hello, world!"
-
-Page to encrypt
-0d 00                                     data length (decimal 13)
-68 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21    message
-00 00 00 00 00 00 00 00 00 00 00 00 00    padding (16371 bytes of zeros)
-```
+![page encryption](./img/page-encryption.png)
 
 The first page will use the encryption key obtained during key derivation and
 the randomly generated IV, and set its page index (0) as Authenticated Data,
