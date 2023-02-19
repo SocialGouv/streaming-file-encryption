@@ -2,10 +2,10 @@ import crypto from 'node:crypto'
 import { compose } from 'node:stream'
 import {
   CipherAlgorithm,
-  CIPHERTEXT_BLOCK_SIZE,
+  CIPHERTEXT_PAGE_SIZE,
   CIPHER_AUTH_TAG_LENGTH,
   CIPHER_IV_LENGTH,
-  CLEARTEXT_BLOCK_SIZE,
+  CLEARTEXT_PAGE_SIZE,
   HEADER_SIZE,
   HEADER_VERSION_1a2g,
   HEADER_VERSION_1c2p,
@@ -74,14 +74,14 @@ export function rebuffer(headerSize: number, bufferSize: number) {
   }
 }
 
-function chunkedEncryption(
+function pagedEncryption(
   mainSecret: Buffer | Uint8Array,
   context: string,
   algorithm: CipherAlgorithm
 ) {
   return async function* encryptChunk(source: AsyncIterable<Buffer>) {
-    let blockIndex = 0
-    const paddingBuffer = Buffer.alloc(CLEARTEXT_BLOCK_SIZE, 0x00)
+    let pageIndex = 0
+    const pageBuffer = Buffer.alloc(2 + CLEARTEXT_PAGE_SIZE)
     const iv = crypto.randomBytes(CIPHER_IV_LENGTH)
     const salt = crypto.randomBytes(KDF_SALT_LENGTH)
     const { cipherKey, hmac } = await deriveKeys(mainSecret, salt, context)
@@ -105,21 +105,12 @@ function chunkedEncryption(
         // @ts-ignore
         authTagLength: CIPHER_AUTH_TAG_LENGTH,
       })
-      cipher.setAAD(numberToUint32LE(blockIndex))
-      const paddingSize = Math.max(
-        0,
-        CLEARTEXT_BLOCK_SIZE - cleartext.byteLength
-      )
-      const blockSizeMark = Buffer.from([
-        cleartext.byteLength & 0xff,
-        (cleartext.byteLength >> 8) & 0xff,
-      ])
-      const paddedClearText = Buffer.concat([
-        blockSizeMark,
-        cleartext,
-        paddingBuffer.subarray(0, paddingSize),
-      ])
-      const ciphertext = cipher.update(paddedClearText)
+      cipher.setAAD(numberToUint32LE(pageIndex))
+      pageBuffer.fill(0x00)
+      pageBuffer[0] = cleartext.byteLength & 0xff
+      pageBuffer[1] = (cleartext.byteLength >> 8) & 0xff
+      pageBuffer.set(cleartext, 2)
+      const ciphertext = cipher.update(pageBuffer)
       yield ciphertext
       hmac.update(ciphertext)
       const final = cipher.final()
@@ -131,14 +122,14 @@ function chunkedEncryption(
       yield authTag
       hmac.update(authTag)
       incrementLE(iv)
-      blockIndex++
+      pageIndex++
     }
     yield hmac.digest()
     memzero(cipherKey)
   }
 }
 
-function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
+function pagedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
   return async function* decryptChunk(source: AsyncIterable<Buffer>) {
     let cipherKey = Buffer.from([])
     let iv = Buffer.from([])
@@ -146,10 +137,10 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
     let isHeader = true
     let isDone = false
     let algorithm: CipherAlgorithm = 'aes-256-gcm'
-    let blockIndex = 0
-    for await (const block of source) {
+    let pageIndex = 0
+    for await (const page of source) {
       if (isHeader) {
-        const v = block.subarray(0, HEADER_VERSION_LENGTH)
+        const v = page.subarray(0, HEADER_VERSION_LENGTH)
         if (v.toString() === HEADER_VERSION_1a2g) {
           algorithm = 'aes-256-gcm'
         } else if (v.toString() === HEADER_VERSION_1c2p) {
@@ -157,11 +148,11 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         } else {
           throw new Error('Unsupported file type')
         }
-        iv = block.subarray(
+        iv = page.subarray(
           HEADER_VERSION_LENGTH,
           HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH
         )
-        const salt = block.subarray(
+        const salt = page.subarray(
           HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH,
           HEADER_SIZE
         )
@@ -172,8 +163,8 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         isHeader = false
         continue
       }
-      if (block.byteLength === HMAC_OUTPUT_LENGTH) {
-        if (!compare(block, hmac!.digest())) {
+      if (page.byteLength === HMAC_OUTPUT_LENGTH) {
+        if (!compare(page, hmac!.digest())) {
           throw new Error(
             'File decryption error: invalid HMAC (failed integrity check)'
           )
@@ -186,25 +177,25 @@ function chunkedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
           'File decryption error: no more data is expected after HMAC verification'
         )
       }
-      hmac!.update(block)
+      hmac!.update(page)
       const authTagLength = CIPHER_AUTH_TAG_LENGTH
       const cipher = crypto.createDecipheriv(algorithm, cipherKey, iv, {
         // @ts-ignore
         authTagLength,
       })
-      cipher.setAAD(numberToUint32LE(blockIndex))
-      const authTag = block.subarray(-authTagLength, block.byteLength)
-      const ciphertext = block.subarray(0, -authTagLength)
+      cipher.setAAD(numberToUint32LE(pageIndex))
+      const authTag = page.subarray(-authTagLength, page.byteLength)
+      const ciphertext = page.subarray(0, -authTagLength)
       cipher.setAuthTag(authTag)
       const paddedCleartext = cipher.update(ciphertext)
       const final = cipher.final() // will throw if authentication fails
-      const blockLength = (paddedCleartext[1] << 8) | paddedCleartext[0]
-      yield paddedCleartext.subarray(2, 2 + blockLength)
+      const pageLength = (paddedCleartext[1] << 8) | paddedCleartext[0]
+      yield paddedCleartext.subarray(2, 2 + pageLength)
       if (final.byteLength > 0) {
         yield final // Avoid yielding zero-length buffers to help with testing
       }
       incrementLE(iv)
-      blockIndex++
+      pageIndex++
     }
     memzero(cipherKey)
     if (!isDone) {
@@ -221,14 +212,14 @@ export function encryptFile(
   algorithm: CipherAlgorithm = 'aes-256-gcm'
 ) {
   return compose(
-    rebuffer(0, CLEARTEXT_BLOCK_SIZE),
-    chunkedEncryption(mainSecret, context, algorithm)
+    rebuffer(0, CLEARTEXT_PAGE_SIZE),
+    pagedEncryption(mainSecret, context, algorithm)
   )
 }
 
 export function decryptFile(mainSecret: Buffer | Uint8Array, context: string) {
   return compose(
-    rebuffer(HEADER_SIZE, CIPHERTEXT_BLOCK_SIZE),
-    chunkedDecryption(mainSecret, context)
+    rebuffer(HEADER_SIZE, CIPHERTEXT_PAGE_SIZE),
+    pagedDecryption(mainSecret, context)
   )
 }
