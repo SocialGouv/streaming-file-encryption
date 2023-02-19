@@ -91,15 +91,9 @@ function pagedEncryption(
         : HEADER_VERSION_1a2g
     )
 
-    yield version
-    hmac.update(version)
-    // Make a copy when writing the IV to avoid same-tick increment
-    // being backported to the output stream
-    const ivOut = Buffer.from(iv)
-    yield ivOut
-    hmac.update(ivOut)
-    yield salt
-    hmac.update(salt)
+    const header = Buffer.concat([version, iv, salt])
+    hmac.update(header)
+    yield header
     for await (const cleartext of source) {
       const cipher = crypto.createCipheriv(algorithm, cipherKey, iv, {
         // @ts-ignore
@@ -111,16 +105,16 @@ function pagedEncryption(
       pageBuffer[1] = (cleartext.byteLength >> 8) & 0xff
       pageBuffer.set(cleartext, 2)
       const ciphertext = cipher.update(pageBuffer)
-      yield ciphertext
-      hmac.update(ciphertext)
       const final = cipher.final()
+      const authTag = cipher.getAuthTag()
+      hmac.update(ciphertext)
+      hmac.update(final)
+      hmac.update(authTag)
+      yield ciphertext
       if (final.byteLength > 0) {
         yield final
-        hmac.update(final)
       }
-      const authTag = cipher.getAuthTag()
       yield authTag
-      hmac.update(authTag)
       incrementLE(iv)
       pageIndex++
     }

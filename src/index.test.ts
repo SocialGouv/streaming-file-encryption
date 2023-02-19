@@ -168,16 +168,14 @@ describe('complete encryption/decryption flow', () => {
     const source = sourceStream([__4kiB])
     const sink = createWriteStream('/dev/null')
     await pipeline(source, encryptFile(mainSecret, 'ctx'), observe(spy), sink)
-    expect(spy).toHaveBeenCalledTimes(6)
+    expect(spy).toHaveBeenCalledTimes(4)
     // Header
-    expect(spy.mock.calls[0][0].byteLength).toEqual(4)
-    expect(spy.mock.calls[1][0].byteLength).toEqual(12)
-    expect(spy.mock.calls[2][0].byteLength).toEqual(32)
+    expect(spy.mock.calls[0][0].byteLength).toEqual(48)
     // Block 1
-    expect(spy.mock.calls[3][0].byteLength).toEqual(2 + _16kiB)
-    expect(spy.mock.calls[4][0].byteLength).toEqual(16)
+    expect(spy.mock.calls[1][0].byteLength).toEqual(2 + _16kiB)
+    expect(spy.mock.calls[2][0].byteLength).toEqual(16)
     // HMAC
-    expect(spy.mock.calls[5][0].byteLength).toEqual(64)
+    expect(spy.mock.calls[3][0].byteLength).toEqual(64)
   })
 
   test('two block file format', async () => {
@@ -186,19 +184,17 @@ describe('complete encryption/decryption flow', () => {
     const source = sourceStream([_16kiB, __8kiB, __4kiB])
     const sink = createWriteStream('/dev/null')
     await pipeline(source, encryptFile(mainSecret, 'ctx'), observe(spy), sink)
-    expect(spy).toHaveBeenCalledTimes(8)
+    expect(spy).toHaveBeenCalledTimes(6)
     // Header
-    expect(spy.mock.calls[0][0].byteLength).toEqual(4)
-    expect(spy.mock.calls[1][0].byteLength).toEqual(12)
-    expect(spy.mock.calls[2][0].byteLength).toEqual(32)
+    expect(spy.mock.calls[0][0].byteLength).toEqual(48)
     // Block 1
+    expect(spy.mock.calls[1][0].byteLength).toEqual(2 + _16kiB)
+    expect(spy.mock.calls[2][0].byteLength).toEqual(16)
+    // Block 2
     expect(spy.mock.calls[3][0].byteLength).toEqual(2 + _16kiB)
     expect(spy.mock.calls[4][0].byteLength).toEqual(16)
-    // Block 2
-    expect(spy.mock.calls[5][0].byteLength).toEqual(2 + _16kiB)
-    expect(spy.mock.calls[6][0].byteLength).toEqual(16)
     // HMAC
-    expect(spy.mock.calls[7][0].byteLength).toEqual(64)
+    expect(spy.mock.calls[5][0].byteLength).toEqual(64)
   })
 
   test('it accepts main secrets as Buffers or Uint8Arrays', async () => {
