@@ -2,11 +2,11 @@ import crypto from 'node:crypto'
 import { compose } from 'node:stream'
 import {
   CipherAlgorithm,
-  CIPHERTEXT_PAGE_SIZE,
+  CIPHERTEXT_PAGE_LENGTH,
   CIPHER_AUTH_TAG_LENGTH,
   CIPHER_IV_LENGTH,
-  CLEARTEXT_PAGE_SIZE,
-  HEADER_SIZE,
+  CLEARTEXT_PAGE_LENGTH,
+  HEADER_LENGTH,
   HEADER_VERSION_1a2g,
   HEADER_VERSION_1c2p,
   HEADER_VERSION_LENGTH,
@@ -27,10 +27,10 @@ declare module 'node:stream' {
   ): Duplex
 }
 
-export function rebuffer(headerSize: number, bufferSize: number) {
+export function rebuffer(headerLength: number, bufferLength: number) {
   return async function* rebuffer(source: AsyncIterable<Buffer>) {
-    const header = headerSize ? Buffer.alloc(headerSize) : null
-    const buffer = Buffer.alloc(bufferSize)
+    const header = headerLength ? Buffer.alloc(headerLength) : null
+    const buffer = Buffer.alloc(bufferLength)
     let hi = 0 // index of first available byte in the header
     let bi = 0 // index of first available byte in the buffer
     let headerEmitted = false
@@ -38,27 +38,27 @@ export function rebuffer(headerSize: number, bufferSize: number) {
       let ci = 0 // index of first byte to process in the incoming chunk
       let chunkBytesToRead = chunk.byteLength
       if (!headerEmitted && header) {
-        const headerFreeSpace = headerSize - hi
+        const headerFreeSpace = headerLength - hi
         const chunkBytesToHeader = Math.min(headerFreeSpace, chunkBytesToRead)
         const slice = chunk.subarray(ci, ci + chunkBytesToHeader)
         header.set(slice, hi)
         chunkBytesToRead -= chunkBytesToHeader
         hi += chunkBytesToHeader
         ci += chunkBytesToHeader
-        if (hi === headerSize) {
+        if (hi === headerLength) {
           yield Buffer.from(header)
           headerEmitted = true
         }
       }
       while (chunkBytesToRead > 0) {
-        const bufferFreeSpace = bufferSize - bi
+        const bufferFreeSpace = bufferLength - bi
         const chunkBytesToBuffer = Math.min(bufferFreeSpace, chunkBytesToRead)
         const slice = chunk.subarray(ci, ci + chunkBytesToBuffer)
         buffer.set(slice, bi)
         chunkBytesToRead -= chunkBytesToBuffer
         bi += chunkBytesToBuffer
         ci += chunkBytesToBuffer
-        if (bi === bufferSize) {
+        if (bi === bufferLength) {
           yield Buffer.from(buffer)
           bi = 0
         }
@@ -79,9 +79,9 @@ function pagedEncryption(
   context: string,
   algorithm: CipherAlgorithm
 ) {
-  return async function* encryptChunk(source: AsyncIterable<Buffer>) {
+  return async function* encryptPage(source: AsyncIterable<Buffer>) {
     let pageIndex = 0
-    const pageBuffer = Buffer.alloc(2 + CLEARTEXT_PAGE_SIZE)
+    const pageBuffer = Buffer.alloc(2 + CLEARTEXT_PAGE_LENGTH)
     const iv = crypto.randomBytes(CIPHER_IV_LENGTH)
     const salt = crypto.randomBytes(KDF_SALT_LENGTH)
     const { cipherKey, hmac } = await deriveKeys(mainSecret, salt, context)
@@ -124,16 +124,15 @@ function pagedEncryption(
 }
 
 function pagedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
-  return async function* decryptChunk(source: AsyncIterable<Buffer>) {
+  return async function* decryptPage(source: AsyncIterable<Buffer>) {
     let cipherKey = Buffer.from([])
     let iv = Buffer.from([])
     let hmac: crypto.Hmac | undefined = undefined
-    let isHeader = true
     let isDone = false
     let algorithm: CipherAlgorithm = 'aes-256-gcm'
     let pageIndex = 0
     for await (const page of source) {
-      if (isHeader) {
+      if (page.byteLength === HEADER_LENGTH) {
         const v = page.subarray(0, HEADER_VERSION_LENGTH)
         if (v.toString() === HEADER_VERSION_1a2g) {
           algorithm = 'aes-256-gcm'
@@ -148,13 +147,10 @@ function pagedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
         )
         const salt = page.subarray(
           HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH,
-          HEADER_SIZE
+          HEADER_LENGTH
         )
         ;({ cipherKey, hmac } = await deriveKeys(mainSecret, salt, context))
-        hmac.update(v)
-        hmac.update(iv)
-        hmac.update(salt)
-        isHeader = false
+        hmac.update(page)
         continue
       }
       if (page.byteLength === HMAC_OUTPUT_LENGTH) {
@@ -206,14 +202,14 @@ export function encryptFile(
   algorithm: CipherAlgorithm = 'aes-256-gcm'
 ) {
   return compose(
-    rebuffer(0, CLEARTEXT_PAGE_SIZE),
+    rebuffer(0, CLEARTEXT_PAGE_LENGTH),
     pagedEncryption(mainSecret, context, algorithm)
   )
 }
 
 export function decryptFile(mainSecret: Buffer | Uint8Array, context: string) {
   return compose(
-    rebuffer(HEADER_SIZE, CIPHERTEXT_PAGE_SIZE),
+    rebuffer(HEADER_LENGTH, CIPHERTEXT_PAGE_LENGTH),
     pagedDecryption(mainSecret, context)
   )
 }
