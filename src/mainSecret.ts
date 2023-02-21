@@ -5,7 +5,7 @@ import crypto from 'node:crypto'
  *
  * @returns a hex-encoded string representation (128 hex characters)
  */
-export function generateMainSecret() {
+export function generateSerializedMainSecret() {
   return crypto.randomBytes(64).toString('hex')
 }
 

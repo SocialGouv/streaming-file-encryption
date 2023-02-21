@@ -17,10 +17,13 @@ npm i @socialgouv/streaming-file-encryption
 To get started, you will need a main secret _(64 bytes hex-encoded)_:
 
 ```ts
-import { generateMainSecret } from '@socialgouv/streaming-file-encryption'
+import { generateSerializedMainSecret } from '@socialgouv/streaming-file-encryption'
 
-const serializedMainSecret = generateMainSecret()
+const serializedMainSecret = generateSerializedMainSecret()
 ```
+
+This will be passed to your application via a secret management service
+(Hashicorp Vault, Kubernetes secrets, mounted secrets file, environment variable etc..)
 
 ### Encrypting & decrypting files
 
@@ -31,7 +34,7 @@ context that was used for encryption has to be provided when attempting to
 decrypt a file.
 
 You could store this context in your database, but make sure it's an immutable
-record, like a foreign key. UUIDs are ideal for this kind of application.
+value, like a foreign key. Random UUIDv4 are ideal for this kind of application.
 
 ```ts
 import {

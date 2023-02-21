@@ -1,3 +1,3 @@
 export type { CipherAlgorithm } from './constants'
-export { decodeMainSecret, generateMainSecret } from './mainSecret'
+export { decodeMainSecret, generateSerializedMainSecret } from './mainSecret'
 export { decryptFile, encryptFile } from './streams'
