@@ -257,6 +257,22 @@ constant page sizes.
 While higher buffer size offered better CPU performance, they came with
 extra storage and RAM usage costs, so 16kiB was chosen as a middle ground.
 
+### Doesn't incrementing the IV across pages increase the risk of nonce reuse?
+
+It would indeed if the key was the same. In our case, keys are derived from
+both user-controlled randomness (the context), and from internal randomness
+(the salt). Even in the case where the context isn't used (constant), we still
+have 64 bytes of randomness fed into HKDF.
+
+That being said, the pigeonhole principle states that there can be _only_
+$2^{256}$ different keys, for which collisions are infeasible.
+
+But let's assume we **do** have a single key collision _(you'd better check your CSPRNG)_.
+IVs are 96 bits long, and we'd need to have at least one page of overlap to
+compromise that key stream. To have a 50% chance of at least one page overlapping,
+we'd have to generate files of about $2^{94}$ pages, or $2^{(94+14)}$ bytes.
+That's about one trillion times the [estimated size of Google datacenters](https://what-if.xkcd.com/63/).
+
 ## Code signature
 
 This package is signed with [`sceau`](https://github.com/47ng/sceau).
