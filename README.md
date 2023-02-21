@@ -14,14 +14,12 @@ npm i @socialgouv/streaming-file-encryption
 
 > _**Note**: requires Node.js v15 or superior._
 
-To get started, you will need a main secret, which can be generated in Node.js:
+To get started, you will need a main secret _(64 bytes hex-encoded)_:
 
 ```ts
-import crypto from 'node:crypto'
+import { generateMainSecret } from '@socialgouv/streaming-file-encryption'
 
-// The length should be between 64 and 256 bytes,
-// and must be issued from a CSPRNG:
-console.info(crypto.randomBytes(64).toString('hex'))
+const serializedMainSecret = generateMainSecret()
 ```
 
 ### Encrypting & decrypting files
@@ -36,11 +34,15 @@ You could store this context in your database, but make sure it's an immutable
 record, like a foreign key. UUIDs are ideal for this kind of application.
 
 ```ts
-import { encryptFile, decryptFile } from '@socialgouv/streaming-file-encryption'
+import {
+  encryptFile,
+  decryptFile,
+  decodeMainSecret,
+} from '@socialgouv/streaming-file-encryption'
 import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 
-const mainSecret = Buffer.from(/* your main secret here */, 'hex')
+const mainSecret = decodeMainSecret(serializedMainSecret)
 const context = 'test context'
 
 // Encryption
