@@ -6,7 +6,9 @@ import {
   CIPHER_AUTH_TAG_LENGTH,
   CIPHER_IV_LENGTH,
   CLEARTEXT_PAGE_LENGTH,
+  HEADER_IV_OFFSET,
   HEADER_LENGTH,
+  HEADER_SALT_OFFSET,
   HEADER_VERSION_1a2g,
   HEADER_VERSION_1c2p,
   HEADER_VERSION_LENGTH,
@@ -90,7 +92,6 @@ function pagedEncryption(
         ? HEADER_VERSION_1c2p
         : HEADER_VERSION_1a2g
     )
-
     const header = Buffer.concat([version, iv, salt])
     hmac.update(header)
     yield header
@@ -142,12 +143,12 @@ function pagedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
           throw new Error('Unsupported file type')
         }
         iv = page.subarray(
-          HEADER_VERSION_LENGTH,
-          HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH
+          HEADER_IV_OFFSET,
+          HEADER_IV_OFFSET + CIPHER_IV_LENGTH
         )
         const salt = page.subarray(
-          HEADER_VERSION_LENGTH + CIPHER_IV_LENGTH,
-          HEADER_LENGTH
+          HEADER_SALT_OFFSET,
+          HEADER_SALT_OFFSET + KDF_SALT_LENGTH
         )
         ;({ cipherKey, hmac } = await deriveKeys(mainSecret, salt, context))
         hmac.update(page)
@@ -179,7 +180,7 @@ function pagedDecryption(mainSecret: Buffer | Uint8Array, context: string) {
       cipher.setAuthTag(authTag)
       const paddedCleartext = cipher.update(ciphertext)
       const final = cipher.final() // will throw if authentication fails
-      const pageLength = (paddedCleartext[1] << 8) | paddedCleartext[0]
+      const pageLength = paddedCleartext[0] | (paddedCleartext[1] << 8)
       yield paddedCleartext.subarray(2, 2 + pageLength)
       if (final.byteLength > 0) {
         yield final // Avoid yielding zero-length buffers to help with testing
