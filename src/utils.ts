@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 export function memzero(buffer: Buffer) {
   for (let i = 0; i < buffer.byteLength; ++i) {
     buffer[i] = 0
@@ -18,11 +20,7 @@ export function compare(a: Buffer, b: Buffer) {
   if (a.byteLength !== b.byteLength) {
     return false
   }
-  let ok = true
-  for (let i = 0; i < a.byteLength; ++i) {
-    ok &&= a[i] === b[i]
-  }
-  return ok
+  return crypto.timingSafeEqual(a, b)
 }
 
 export function numberToUint32LE(input: number) {
