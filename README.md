@@ -109,12 +109,12 @@ There are two cryptographic parts to performing encryption and decryption:
 1. Obtaining keys via key derivation
 2. Encrypting and decrypting the contents of a file
 
-Key derivation is done using `HKDF-SHA512`.
+Key derivation is done using `HKDF-SHA-512`.
 
 Symmetric encryption is done using either `AES-256-GCM` or `ChaCha20-Poly1305`
 on pages of 16kiB of cleartext at a time.
 
-Final message authentication is done using `HMAC-SHA512`.
+Final message authentication is done using `HMAC-SHA-512`.
 
 ### Key derivation
 
@@ -122,7 +122,7 @@ Final message authentication is done using `HMAC-SHA512`.
 
 We generate a random 32 byte salt `S`.
 
-Two keys are derived using `HKDF-SHA512`:
+Two keys are derived using `HKDF-SHA-512`:
 
 One is for encryption, using the main secret as the IKM, the context as the `info` and the salt `S`, giving
 an output key of 32 bytes (256 bits).
@@ -205,7 +205,7 @@ ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee  |  Page 2 ciphertext
 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff  |  Page 2 authentication tag
 
 HMAC
-xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  HMAC-SHA512
+xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  HMAC-SHA-512
 xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  of everything
 xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  until
 xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx  |  this point
