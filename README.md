@@ -86,7 +86,7 @@ the input and output files via stdin and stdout respectively:
 ```sh
 export MAIN_SECRET=...
 npx @socialgouv/streaming-file-encryption encrypt --context foo < image.jpg > image.jpg.sfe
-npx @socialgouv/streaming-file-encryption decrypt --context bar < image.jpg.sfe > image.jpg
+npx @socialgouv/streaming-file-encryption decrypt --context foo < image.jpg.sfe > image.jpg
 ```
 
 > Note: you can use any of the following aliases for the context flag:
