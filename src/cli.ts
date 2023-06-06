@@ -27,14 +27,21 @@ async function main() {
   const args = parseArgs(process.argv.slice(2), {
     alias: {
       context: ['c', 'ctx'],
+      algorithm: ['a', 'alg'],
     },
   })
   const action = args._[0]
   if (action === 'encrypt') {
     const { mainSecret, context } = loadCipherArguments(args)
+    const algorithm = args.algorithm ?? 'aes-256-gcm'
+    if (!['aes-256-gcm', 'chacha20-poly1305'].includes(algorithm)) {
+      console.error(
+        'Invalid algorithm: only `aes-256-gcm` and `chacha20-poly1305` are supported.'
+      )
+    }
     await pipeline(
       process.stdin,
-      encryptFile(mainSecret, context),
+      encryptFile(mainSecret, context, algorithm),
       process.stdout
     )
   } else if (action === 'decrypt') {
