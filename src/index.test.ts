@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
-import { decryptFile, encryptFile } from './index'
+import { decodeMainSecret, decryptFile, encryptFile } from './index'
 import { rebuffer } from './streams'
 import { expectOutputSequence, observe, sourceStream } from './tests/streams'
 
@@ -97,9 +97,8 @@ describe('complete encryption/decryption flow', () => {
   })
 
   test('known vector - antiregression - aes-256-gcm', async () => {
-    const mainSecret = Buffer.from(
-      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      'hex'
+    const mainSecret = decodeMainSecret(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
     )
     const context = 'context'
     // Generated with:
@@ -130,9 +129,8 @@ describe('complete encryption/decryption flow', () => {
   })
 
   test('known vector - antiregression - chacha20-poly1305', async () => {
-    const mainSecret = Buffer.from(
-      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      'hex'
+    const mainSecret = decodeMainSecret(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
     )
     const context = 'context'
     // Generated with:
