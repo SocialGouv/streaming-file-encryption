@@ -49,11 +49,14 @@ jobs:
           MAIN_SECRET: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
         run: |
           node ./dist/cli.cjs generate
-          node ./dist/cli.cjs encrypt -c ci < cleartext.bin > ciphertext.ci.sfe
-          node ./dist/cli.cjs decrypt -c ci < ciphertext.ci.sfe > cleartext.ci.bin
+          node ./dist/cli.cjs encrypt -c ci -a aes-256-gcm < cleartext.bin > ciphertext.ci.aes-256-gcm.bin
+          node ./dist/cli.cjs encrypt -c ci -a chacha20-poly1305 < cleartext.bin > ciphertext.ci.chacha20-poly1305.bin
+          node ./dist/cli.cjs decrypt -c ci < ciphertext.ci.aes-256-gcm.bin > cleartext.ci.aes-256-gcm.bin
+          node ./dist/cli.cjs decrypt -c ci < ciphertext.ci.chacha20-poly1305.bin > cleartext.ci.chacha20-poly1305.bin
           node ./dist/cli.cjs decrypt -c context < ciphertext.aes-256-gcm.bin > cleartext.aes-256-gcm.bin
           node ./dist/cli.cjs decrypt -c context < ciphertext.chacha20-poly1305.bin > cleartext.chacha20-poly1305.bin
-          diff cleartext.bin cleartext.ci.bin
+          diff cleartext.bin cleartext.ci.aes-256-gcm.bin
+          diff cleartext.bin cleartext.ci.chacha20-poly1305.bin
           diff cleartext.bin cleartext.aes-256-gcm.bin
           diff cleartext.bin cleartext.chacha20-poly1305.bin
 
