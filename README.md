@@ -22,6 +22,12 @@ import { generateSerializedMainSecret } from '@socialgouv/streaming-file-encrypt
 const serializedMainSecret = generateSerializedMainSecret()
 ```
 
+Or do so via the CLI:
+
+```sh
+npx @socialgouv/streaming-file-encryption generate
+```
+
 This will be passed to your application via a secret management service
 (Hashicorp Vault, Kubernetes secrets, mounted secrets file, environment variable etc..)
 
@@ -71,6 +77,25 @@ encryptFile(mainSecret, context, 'chacha20-poly1305'),
 ```
 
 Decryption handles files encrypted with either cipher transparently.
+
+## CLI usage
+
+The main secret is passed via the environment, the context via a CLI flag, and
+the input and output files via stdin and stdout respectively:
+
+```sh
+export MAIN_SECRET=...
+npx @socialgouv/streaming-file-encryption encrypt --context foo < image.jpg > image.jpg.sfe
+npx @socialgouv/streaming-file-encryption decrypt --context bar < image.jpg.sfe > image.jpg
+```
+
+> Note: you can use any of the following aliases for the context flag:
+>
+> ```sh
+> -c foo
+> --ctx foo
+> --context foo
+> ```
 
 ## Security
 
