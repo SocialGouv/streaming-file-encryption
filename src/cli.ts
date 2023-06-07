@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import parseArgs, { ParsedArgs } from 'minimist'
 import { pipeline } from 'node:stream/promises'
 import {
