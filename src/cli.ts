@@ -26,11 +26,43 @@ function loadCipherArguments(args: ParsedArgs) {
 async function main() {
   const args = parseArgs(process.argv.slice(2), {
     alias: {
+      help: 'h',
       context: ['c', 'ctx'],
       algorithm: ['a', 'alg'],
     },
   })
   const action = args._[0]
+  if (args.help || action === 'help') {
+    console.info(`Streaming File Encryption CLI
+
+Commands:
+
+    generate          Generate a main secret as an environment variable export
+    encrypt           Encrypt a file
+    decrypt           Decrypt a file
+
+Encryption and decryption both require a main secret to be passed
+via the \`MAIN_SECRET\` environment variable.
+
+Encryption and decryption requires a context string to be passed
+via the --context flag (aliases: -c or --ctx).
+
+Encryption can optionally specify the cipher algorithm to use,
+via the --algorithm flag (aliases: -a or --alg).
+Values are \`aes-256-gcm\` (default) or \`chacha20-poly1305\`.
+
+Files are read from the standard input, and written to standard output.
+
+Example usage:
+
+$ npx @socialgouv/streaming-file-encryption generate
+$ export MAIN_SECRET=0123456789abcdef...
+$ npx @socialgouv/streaming-file-encryption encrypt --context foo < document.pdf > document.pdf.sfe
+$ npx @socialgouv/streaming-file-encryption decrypt --context foo < document.pdf.sfe > decrypted.pdf
+`)
+    process.exit(0)
+  }
+
   if (action === 'encrypt') {
     const { mainSecret, context } = loadCipherArguments(args)
     const algorithm = args.algorithm ?? 'aes-256-gcm'
